@@ -108,3 +108,60 @@ Examples of preprocessing include:
 --> removing predictors that are highly correlated with each other,
 --> removing predictors with very few non-unique values, or close to zero variation.
 
+Let's look at the last of these as an example. The basic idea of near zero variation is that if little or no variability is present among the predictors then no ink is present in that pixel - ie. no handwriting in that part of the 28x28 box. This is especially true if the corresponding value is 0 since that means it is white - ie no color, just background.
+
+For this we first need to compute the standard deviations of the predictors and plot them. This can be done in two ways:
+
+```{r}
+# Option 1 - requires matrixStats package
+
+library(matrixStats)
+sds <- colSds(mnist_train_x)
+qplot(sds, bins = 256) #alternatively, binwidth = 1
+
+#Option 2  - without matrixStats package
+
+mnist_train_x %>% 
+  as.data.frame() %>%
+  map_df(sd) %>%
+  gather(feature, sd) %>%
+  ggplot(aes(sds)) +
+    geom_histogram(binwidth = 1) #alternatively, bins = 256
+```
+
+From the plot we can see that there are a large number of predictors with zero or near zero variability. This is expected because there are parts of the image that rarely contain writing, very few dark pixels, so there is very little variation, and almost all the values are 0. 
+
+To identify and remove these we need to use the *caret* package.
+
+Caret includes a function that recommends features to be removed due to near zero variance:
+
+```{r}
+library(caret)
+nzv <- nearZeroVar(mnist_train_x)
+```
+
+we can then see the the columns recommended for removal:
+
+```{r}
+image(matrix(1:784 %in% nzv, nrow = 28, ncol = 28))
+```
+
+To remove the recommended ones and keep the remaining:
+
+```{r}
+col_index <- setdiff(1:ncol(mnist_train_x),nzv) #setdiff(x,y) is part of dplyr package. It identifies the differences in x (here x is from 1 to the number of columns in our mnist_train_x which is 784) and y (here y is the net zero values we defined above) by giving output of values that do not overlap between x and y. In other words, the output will be only those numbers that are not common to 1:784 and nzv. 
+
+```
+
+Now we can see how many of the columns, or predictors, we will keep:
+
+```{r}
+length(col_index)
+```
+
+We see that there are only 249 columns have useful information. We can now remove the other 535 (=784-249) columns with near zero variation. In order to do so, we first need to add column names to the feature matrices - this is a requirement of the *caret* package.
+
+```{r}
+colnames_
+```
+
