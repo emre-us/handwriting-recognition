@@ -1,0 +1,110 @@
+---
+title: "Predicting Digits from Handwriting"
+output: html_notebook
+---
+
+Load up the MNIST data from dslabs package as well as the other libraries we will need:
+
+```{r}
+library(dslabs) #for the MNIST data
+
+#Helper packages
+library(tidyverse) #for tidy data
+library(dplyr) #for data wrangling
+library(ggplot2) #for visualisations
+
+#Modeling packages
+
+```
+
+
+Next, read the minst data:
+
+```{r}
+mnist <- read_mnist()
+```
+
+Let's look at the mnist data:
+
+```{r}
+names(mnist)
+```
+
+We see there are two components - a training and a test set. Let's look at what they comprise of:
+
+
+```{r}
+names(mnist$train)
+names(mnist$test)
+```
+
+When we look at these two sets we see a further two components - images and labels. We can check if there are any more subcomponents:
+
+```{r}
+names(mnist$train$images)
+names(mnist$train$labels)
+```
+
+This confirms that there are no further subcomponents. We can next check the class of "images" and "labels" as well:
+
+```{r}
+class(mnist$train$images) 
+class(mnist$train$labels)
+```
+
+This confirms that images component is a matrix/array and labels are classed as integer. Since images component is a matrix, lets check out the dimensions of this matrix:
+
+```{r}
+dim(mnist$train$images)
+```
+
+Images component is a matrix with n=60,000 and p=784, ie it has 784 features and 60,000 observations.
+
+We can also check the values images component takes:
+
+```{r}
+c(min(mnist$train$images), max(mnist$train$images))
+```
+
+It looks like 784 features correspond to pixels on a 28x28 frame on which a number is handwritten and the values represent the colour code from 0 to 255. Reading from the online MNIST Documentation (see Readme for the link) we see that 0 pixel value corresponds to background (white), 255 means foreground (black), and that pixels are organised row-wise.
+
+We can also look at the response variable, labels:
+
+```{r}
+head(mnist$train$labels)
+```
+
+Again, as the online documentation confirms, it is a vector with values from 0 to 9 for assigning the correct label to the handwritten numbers. We can also see how many observations are categorised as each of the integers:
+
+```{r}
+table(mnist$train$labels)
+```
+
+which looks like a fairly similar distribution.
+
+For computational reasons (we want this example to run on a laptop in a reasonable amount of time - preferrably less than an hour) we will not use the whole 60,000 observations but pick a random sample of 10,000. We will also do the same for the test data.
+
+```{r}
+# sample train data
+set.seed(123) #for reproduceability
+index <- sample(nrow(mnist$train$images), size = 10000) #this will randomly sample 10,000 rows out of the full 60,000
+mnist_train_x <- mnist$train$images[index, ] # select those from the images component (explanatory variable or predictor, x) that correspond to the 10,000 selected
+mnist_train_y <- mnist$train$labels[index] # select those from labels component (target variable, y) that correspond to the 10,000 selected
+
+# sample test data
+index <- sample(nrow(mnist$test$images), size = 10000)
+mnist_test_x <- mnist$test$images[index, ]
+mnist_test_y <- mnist$test$labels[index]
+```
+
+
+## Preprocessing
+In ML, it is often the case that the predictors need to be transformed before running the ML algorithm. Similarly, those predictors that are not useful also need to be removed. All these steps are called pre-processing.
+
+Examples of preprocessing include:
+
+--> standardising the predictors,
+--> taking the log transformation of some predictors,
+--> removing predictors that are highly correlated with each other,
+--> removing predictors with very few non-unique values, or close to zero variation.
+
