@@ -261,7 +261,7 @@ confusionMatrix(y_hat_knn, y_test)  #if you want to check just the accuracy then
 
 ```
 
-Which gives a pretty good accuracy of almost 95%.
+Which gives a pretty good accuracy of about 94.8%.
 
 From sensitivity and specificity we can see which digits are the hardest to detect (sensitivity) and which ones are the most commonly incorrectly predicted digit (specificity). From the table it seems like 8s are the hardest to detect since they have the lowest sensitivity. 9s are the most commonly incorrectly predicted digit since they have the lowest specificity.
 
@@ -306,6 +306,7 @@ fit_rf <- randomForest(x_train,
 plot(fit_rf)
 
 ```
+As the graph makes it apparent, after a certain number of trees, any additional tree doesn't improve error rate that much.
 
 As before, we can check the accuracy of our random forest algo:
 
@@ -313,5 +314,97 @@ As before, we can check the accuracy of our random forest algo:
 y_hat_rf <- predict(fit_rf,
                     x_test)
 confusionMatrix(y_hat_rf, y_test)
+```
+
+Our accuracy has improved from about 94.8% to about 95.3%. 
+
+Here are some examples of the original images and our calls with random forest:
+
+```{r}
+for(i in 1:6){
+  image(matrix(x_test[i,], 28, 28)[, 28:1],
+        main = paste("Our Prediction:", y_hat_rf[i]),
+        xaxt = "n", yaxt = "n")
+}
+```
+
+With some further tuning, examining more parameters, adjusting the tree numbers, we may get even higher accuracy.
+
+One of the limitations of random forest is that they are not very interpretable. The concept of variable importance helps a little bit in this regard.
+
+
+#### Variable Importance
+
+The following function computes the importance of each feature. However, given we have 784 features we use the head()
+function to look at the first few features. 
+```{r}
+head(importance(fit_rf))
+```
+
+We can see that the first few features have 0 importance. This means they are never used in the predictor algorithm. This actually makes sense because these are the features on the edges, the feature that have no writing in them so no dark pixels in them. Remember the pixels are organised row-wise.
+
+So in this example, it makes sense to explore the importance of this feature using an image.
+
+We will create an image where each feature is plotted in the location of the image where it came from:
+
+```{r}
+mat <- rep(0, ncol(x_train))
+mat[col_index] <- importance(fit_rf)
+image(matrix(mat, 28, 28))
+```
+
+It is clear that the important features are in the middle where the writing is.
+
+
+#### Visualising Failures
+
+An important part of data analysis is visualising the results to determine why we are failing. How we do this of course depends on the application.
+
+For the examples of digits, we will find digits for which we were quite certain of a call but we were incorrect.
+
+We can compare what we get with kNN to what we get with random forest.
+
+The following code will create images of the cases where we made a mistake with kNN model:
+
+```{r}
+#Visualising mistakes we made with kNN
+
+p_max <- predict(fit_knn, x_test)
+# p_max <- p_max / rowSums(p_max)
+p_max <- apply(p_max, 1, max)
+ind <- which(y_hat_knn != y_test)
+ind <- ind[order(p_max[ind], decreasing = TRUE)]
+
+for(i in ind[1:6]){
+  image(matrix(x_test[i,], 28, 28)[, 28:1],
+        main = paste0("Pr(", y_hat_knn[i], ")= ",
+                      round(p_max[i], 2),
+                      " but is a ",
+                      y_test[i]),
+        xaxt = "n",
+        yaxt = "n")
+}
+```
+
+The following code will create images of the cases where we made a mistake with random forest model:
+
+```{r}
+p_max <- predict(fit_rf, x_test, type = "prob")
+p_max <- p_max / rowSums(p_max)
+p_max <- apply(p_max, 1, max)
+
+ind <- which(y_hat_rf != y_test)
+ind <- ind[order(p_max[ind],
+                 decreasing = TRUE)]
+
+for(i in ind[1:6]){
+  image(matrix(x_test[i,], 28, 28)[, 28:1],
+        main = paste0("Pr(", y_hat_rf[i], ")= ",
+                      round(p_max[i], 2),
+                      " but is a ",
+                      y_test[i]),
+        xaxt = "n",
+        yaxt = "n")
+}
 ```
 
