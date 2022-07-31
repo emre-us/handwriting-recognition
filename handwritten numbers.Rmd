@@ -14,6 +14,7 @@ library(dplyr) #for data wrangling
 library(ggplot2) #for visualisations
 
 #Modeling packages
+library(caret) #For machine learning, for resampling and model training, especially kNN
 
 ```
 
@@ -88,13 +89,13 @@ For computational reasons (we want this example to run on a laptop in a reasonab
 # sample train data
 set.seed(123) #for reproduceability
 index <- sample(nrow(mnist$train$images), size = 10000) #this will randomly sample 10,000 rows out of the full 60,000
-mnist_train_x <- mnist$train$images[index, ] # select those from the images component (explanatory variable or predictor, x) that correspond to the 10,000 selected
-mnist_train_y <- mnist$train$labels[index] # select those from labels component (target variable, y) that correspond to the 10,000 selected
+train_x <- mnist$train$images[index, ] # select those from the images component (explanatory variable or predictor, x) that correspond to the 10,000 selected
+train_y <- mnist$train$labels[index] # select those from labels component (target variable, y) that correspond to the 10,000 selected
 
 # sample test data
 index <- sample(nrow(mnist$test$images), size = 10000)
-mnist_test_x <- mnist$test$images[index, ]
-mnist_test_y <- mnist$test$labels[index]
+test_x <- mnist$test$images[index, ]
+test_y <- mnist$test$labels[index]
 ```
 
 
@@ -116,12 +117,12 @@ For this we first need to compute the standard deviations of the predictors and 
 # Option 1 - requires matrixStats package
 
 library(matrixStats)
-sds <- colSds(mnist_train_x)
+sds <- colSds(train_x)
 qplot(sds, bins = 256) #alternatively, binwidth = 1
 
 #Option 2  - without matrixStats package
 
-mnist_train_x %>% 
+train_x %>% 
   as.data.frame() %>%
   map_df(sd) %>%
   gather(feature, sd) %>%
@@ -136,8 +137,7 @@ To identify and remove these we need to use the *caret* package.
 Caret includes a function that recommends features to be removed due to near zero variance:
 
 ```{r}
-library(caret)
-nzv <- nearZeroVar(mnist_train_x)
+nzv <- nearZeroVar(train_x)
 ```
 
 we can then see the the columns recommended for removal:
@@ -149,7 +149,7 @@ image(matrix(1:784 %in% nzv, nrow = 28, ncol = 28))
 To remove the recommended ones and keep the remaining:
 
 ```{r}
-col_index <- setdiff(1:ncol(mnist_train_x),nzv) #setdiff(x,y) is part of dplyr package. It identifies the differences in x (here x is from 1 to the number of columns in our mnist_train_x which is 784) and y (here y is the net zero values we defined above) by giving output of values that do not overlap between x and y. In other words, the output will be only those numbers that are not common to 1:784 and nzv. 
+col_index <- setdiff(1:ncol(train_x),nzv) #setdiff(x,y) is part of dplyr package. It identifies the differences in x (here x is from 1 to the number of columns in our mnist_train_x which is 784) and y (here y is the net zero values we defined above) by giving output of values that do not overlap between x and y. In other words, the output will be only those numbers that are not common to 1:784 and nzv. 
 
 ```
 
@@ -159,9 +159,79 @@ Now we can see how many of the columns, or predictors, we will keep:
 length(col_index)
 ```
 
-We see that there are only 249 columns have useful information. We can now remove the other 535 (=784-249) columns with near zero variation. In order to do so, we first need to add column names to the feature matrices - this is a requirement of the *caret* package.
+We see that there are only 249 columns have useful information. We can now remove the other 535 (=784-249) columns with near zero variation. Before doing so, make sure to add column names to the feature matrices - this is a requirement of the *caret* package for fitting models. If we name the columns after we remove the nzv ones, then when we apply the same names to test predictors, there will be a dimensional mismatch since only 249 will have names in the former, and 784 in the latter.
+
+We will add the column numbers from images component as the names for column names. To add names to columns of features:
 
 ```{r}
-colnames_
+#Rename features:
+colnames(train_x) <- 1:ncol(mnist$train$images)
+
+#Apply the column names to the predictors in the test set as well:
+colnames(test_x) <- colnames(train_x)
+```
+
+
+
+## Modelling
+
+Now we are ready for modelling. We will start with a very simple but widely used algorithm - kNN. 
+
+
+### kNN
+
+This is an algo in which each observation is predicted based on its 'similarity' to other observations. It is considered a lazy learner because it is not really 'learning' anything. It is a memory-based algo and relies on training samples and not on abstracted model. One of the downsides of this is that the process of making predictions tend to be relatively slow and computationally inefficient. Nevertheless, this is a powerful algo that can be very useful.
+
+The kNN algo identifies k observations that are nearest to the new record being predicted (ie unlabeled) and then uses the average response value (regression) or the most common class (classification) of those k observations as the predicted output.
+
+The first step is to choose k. After choosing k, the algo requires a training data set classified into several categories as labeled by a nominal variable (in our case from 0 to 9 to identify the handwritten numbers).
+
+The distance for determining the 'nearest' or 'similarity' can be determined in a number of ways. The two most common are Euclidean and Manhattan (others include Minkowski and Mahalanobis distances). Former measures the straight line distance (as the crow flies), while the latter is based on the paths a pedestrian would take around city blocks. It effectively measures the point-to-point travel time (ie city block) and is commonly used for binary predictors. 
+
+The distance between $x_a$ and $x_b$ for all j features can be calculated as:
+
+$$
+Euclidean = \sqrt{\sum_{j=1}^{P}{(x_{aj} - x_{bj})^2}}
+$$
+
+$$
+Manhattan = \sum_{j=1}^{P}{|x_{aj} - x_{bj}|}
+$$
+
+
+We will use Euclidean here since we don't have binary encoding. You can get more info on distance via the documentation of R's distance function using the ?dist command.
+
+The performance of kNN is very sensitive to the choice of k. There is no general rule about the best k as it depends on the nature of the data. For data with lots of noisy (irrelevant) features, larger k tends to be required to smooth out the noise.
+
+Given that we have to compute distance between each obesrvation in the training and test sets, this will have a large computational demand. We will use k-fold cross validation to optimise k and improve speed via caret package. This will find the model that will maximise the accuracy. 
+
+As a way of illustration, if you run the following code that attempts to see the effect of k= 3, 5, or 7, it would take several minutes.
+
+```{r}
+# train_knn <- train(train_x, 
+#                    train_y,
+#                    method = "knn",
+#                    tuneGrid = data.frame(k=c(3,5,7)),   # create a hyperparameter grid search
+#                    trControl = trainControl(method = "cv",   # resampling
+#                                             number = 10,
+#                                             p = 0.9))
+```
+
+Therefore, it is a good practice to try and test out a piece of code on a subset of the data first in order to get an idea of the computational time. 
+
+To do this, we first define n as the number of rows we will use in this subset of the data and b as the number of cross-validation folds. We can then increase the number slowly to get an idea how long the final code will take.
+
+```{r}
+n <- 1000
+b <- 2
+index <- sample(nrow(train_x), n)
+
+train_knn <- caret::train(train_x[index,],
+                   train_y[index],
+                   method = "knn",
+                   tuneGrid = data.frame(k = c(3,5,7)),
+                   trControl = trainControl(method = "cv", 
+                                            number = b,
+                                            p = 0.9))
 ```
 
