@@ -15,6 +15,7 @@ library(ggplot2) #for visualisations
 
 #Modeling packages
 library(caret) #For machine learning, for resampling and model training, especially kNN
+library(randomForest) # for carryingo out random forest
 
 ```
 
@@ -226,12 +227,90 @@ n <- 1000
 b <- 2
 index <- sample(nrow(train_x), n)
 
-train_knn <- caret::train(train_x[index,],
+#depending on the order in which libraries have been loaded dply may mask caret's train function. to avoid getting an error, it may be prudent to specify the package from which you are calling the train() function
+
+train_knn <- caret::train(train_x[index,],   
                    train_y[index],
                    method = "knn",
                    tuneGrid = data.frame(k = c(3,5,7)),
                    trControl = trainControl(method = "cv", 
                                             number = b,
                                             p = 0.9))
+train_knn
+train_knn$bestTune
+plot(train_knn)
+```
+
+So we can see that when k = 3 we have the lowest level of RMSE. We can then use that to fit it to the entire data set, and then check its prediction accuracy:
+
+```{r}
+# fit the knn model using caret's knn3 (alternatively you can use class package's knn() function)
+fit_knn <- knn3(train_x, as.factor(train_y), k=3) #if you don't do as.factor(train_y) you will get y needs to be a factor error
+```
+
+we can then check the accuracy
+```{r}
+# assign the prediction model to y_hat. 
+y_hat_knn <- predict(fit_knn,
+                     test_x,
+                     type="class")
+
+#To check accuracy via Confusion Matrix
+confusionMatrix(y_hat_knn, factor(test_y))  #if you want to check just the accuracy then add $overall["Accuracy"] to the end of this code
+
+```
+
+Which gives a pretty good accuracy of almost 95%.
+
+From sensitivity and specificity we can see which digits are the hardest to detect (sensitivity) and which ones are the most commonly incorrectly predicted digit (specificity). From the table it seems like 8s are the hardest to detect since they have the lowest sensitivity. 9s are the most commonly incorrectly predicted digit since they have the lowest specificity.
+
+Can we do better? Let's try random forest algorithm.
+
+
+
+### Random Forest
+
+Random forests create a challenge for us in terms of computing time. This is because for each forest we need to build hundreds of trees. We also have several parameters we can tune. In kNN it is the predicting that can be time-intensive, whereas with random forests it is the fitting that is the slowest part of the procedure. Due to this slowness, we will use only 5-fold cross validation and we will reduce the number of trees that are fit since we are not yet building our final model. We will also use a smaller data set to compute by taking a random sample of the observations when constructing the tree.
+
+We can change this number with the nSamp argument in caret's train function. The code is similar to kNN but notice that the method is "rf" now. The code below will take several minutes to run:
+
+```{r}
+#as was the case with kNN we will use the train() function
+train_rf <- caret::train(train_x, 
+                         train_y,
+                         method = "rf",
+                         ntree = 150,
+                         trControl = trainControl(method = "cv",
+                                                  number = 5),
+                         tuneGrid = data.frame(mtry = c(1,5,10,25,50,100)),
+                         nSamp = 100)
+
+# plot the final result and find the best tuning point that minimises RMSE
+train_rf
+ggplot(train_rf)
+train_rf$bestTune
+```
+
+Now we have optimised our algo, we are ready to fit our final model (also will take several minutes to run):
+
+```{r}
+#fit the model using randomForest() function
+
+fit_rf <- randomForest(train_x, 
+                       train_y,
+                       minNode = train_rf$bestTune$mtry)
+
+# plot the model to check we ran enough trees
+
+plot(fit_rf)
+
+```
+
+As before, we can check the accuracy of our random forest algo:
+
+```{r}
+y_hat_rf <- predict(fit_rf,
+                    test_x)
+confusionMatrix(y_hat_rf, test_y)
 ```
 
