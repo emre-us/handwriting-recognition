@@ -15,7 +15,7 @@ library(ggplot2) #for visualisations
 
 #Modeling packages
 library(caret) #For machine learning, for resampling and model training, especially kNN
-library(randomForest) # for carryingo out random forest
+library(randomForest) # for carrying out random forest
 
 ```
 
@@ -90,13 +90,13 @@ For computational reasons (we want this example to run on a laptop in a reasonab
 # sample train data
 set.seed(123) #for reproduceability
 index <- sample(nrow(mnist$train$images), size = 10000) #this will randomly sample 10,000 rows out of the full 60,000
-train_x <- mnist$train$images[index, ] # select those from the images component (explanatory variable or predictor, x) that correspond to the 10,000 selected
-train_y <- mnist$train$labels[index] # select those from labels component (target variable, y) that correspond to the 10,000 selected
+x_train <- mnist$train$images[index, ] # select those from the images component (explanatory variable or predictor, x) that correspond to the 10,000 selected
+y_train <- factor(mnist$train$labels[index]) # select those from labels component (target variable, y) that correspond to the 10,000 selected. Note that the dependent variables, ie labels, need to be factor for caret. Otherwise when you are running your knn or other algorithm you will get y_train needs to be a factor error.
 
 # sample test data
 index <- sample(nrow(mnist$test$images), size = 10000)
-test_x <- mnist$test$images[index, ]
-test_y <- mnist$test$labels[index]
+x_test <- mnist$test$images[index, ]
+y_test <- factor(mnist$test$labels[index])
 ```
 
 
@@ -118,12 +118,12 @@ For this we first need to compute the standard deviations of the predictors and 
 # Option 1 - requires matrixStats package
 
 library(matrixStats)
-sds <- colSds(train_x)
+sds <- colSds(x_train)
 qplot(sds, bins = 256) #alternatively, binwidth = 1
 
 #Option 2  - without matrixStats package
 
-train_x %>% 
+x_train %>% 
   as.data.frame() %>%
   map_df(sd) %>%
   gather(feature, sd) %>%
@@ -138,7 +138,7 @@ To identify and remove these we need to use the *caret* package.
 Caret includes a function that recommends features to be removed due to near zero variance:
 
 ```{r}
-nzv <- nearZeroVar(train_x)
+nzv <- nearZeroVar(x_train)
 ```
 
 we can then see the the columns recommended for removal:
@@ -150,7 +150,7 @@ image(matrix(1:784 %in% nzv, nrow = 28, ncol = 28))
 To remove the recommended ones and keep the remaining:
 
 ```{r}
-col_index <- setdiff(1:ncol(train_x),nzv) #setdiff(x,y) is part of dplyr package. It identifies the differences in x (here x is from 1 to the number of columns in our mnist_train_x which is 784) and y (here y is the net zero values we defined above) by giving output of values that do not overlap between x and y. In other words, the output will be only those numbers that are not common to 1:784 and nzv. 
+col_index <- setdiff(1:ncol(x_train),nzv) #setdiff(x,y) is part of dplyr package. It identifies the differences in x (here x is from 1 to the number of columns in our mnist_train_x which is 784) and y (here y is the net zero values we defined above) by giving output of values that do not overlap between x and y. In other words, the output will be only those numbers that are not common to 1:784 and nzv. 
 
 ```
 
@@ -166,10 +166,10 @@ We will add the column numbers from images component as the names for column nam
 
 ```{r}
 #Rename features:
-colnames(train_x) <- 1:ncol(mnist$train$images)
+colnames(x_train) <- 1:ncol(mnist$train$images)
 
 #Apply the column names to the predictors in the test set as well:
-colnames(test_x) <- colnames(train_x)
+colnames(x_test) <- colnames(x_test)
 ```
 
 
@@ -209,8 +209,8 @@ Given that we have to compute distance between each obesrvation in the training 
 As a way of illustration, if you run the following code that attempts to see the effect of k= 3, 5, or 7, it would take several minutes.
 
 ```{r}
-# train_knn <- train(train_x, 
-#                    train_y,
+# train_knn <- train(x_train, 
+#                    y_train,
 #                    method = "knn",
 #                    tuneGrid = data.frame(k=c(3,5,7)),   # create a hyperparameter grid search
 #                    trControl = trainControl(method = "cv",   # resampling
@@ -225,12 +225,13 @@ To do this, we first define n as the number of rows we will use in this subset o
 ```{r}
 n <- 1000
 b <- 2
-index <- sample(nrow(train_x), n)
+set.seed(123) #for reproduceability
+index <- sample(nrow(x_train), n)
 
 #depending on the order in which libraries have been loaded dply may mask caret's train function. to avoid getting an error, it may be prudent to specify the package from which you are calling the train() function
 
-train_knn <- caret::train(train_x[index,],   
-                   train_y[index],
+train_knn <- caret::train(x_train[index,],   
+                   y_train[index],
                    method = "knn",
                    tuneGrid = data.frame(k = c(3,5,7)),
                    trControl = trainControl(method = "cv", 
@@ -245,18 +246,18 @@ So we can see that when k = 3 we have the lowest level of RMSE. We can then use 
 
 ```{r}
 # fit the knn model using caret's knn3 (alternatively you can use class package's knn() function)
-fit_knn <- knn3(train_x, as.factor(train_y), k=3) #if you don't do as.factor(train_y) you will get y needs to be a factor error
+fit_knn <- knn3(x_train, y_train, k=3) #if you don't do as.factor(train_y) you will get y needs to be a factor error. Alternatively, you can set train_y as factor above at the very beginning
 ```
 
 we can then check the accuracy
 ```{r}
 # assign the prediction model to y_hat. 
 y_hat_knn <- predict(fit_knn,
-                     test_x,
+                     x_test,
                      type="class")
 
 #To check accuracy via Confusion Matrix
-confusionMatrix(y_hat_knn, factor(test_y))  #if you want to check just the accuracy then add $overall["Accuracy"] to the end of this code
+confusionMatrix(y_hat_knn, y_test)  #if you want to check just the accuracy then add $overall["Accuracy"] to the end of this code
 
 ```
 
@@ -276,8 +277,8 @@ We can change this number with the nSamp argument in caret's train function. The
 
 ```{r}
 #as was the case with kNN we will use the train() function
-train_rf <- caret::train(train_x, 
-                         train_y,
+train_rf <- caret::train(x_train, 
+                         y_train,
                          method = "rf",
                          ntree = 150,
                          trControl = trainControl(method = "cv",
@@ -296,8 +297,8 @@ Now we have optimised our algo, we are ready to fit our final model (also will t
 ```{r}
 #fit the model using randomForest() function
 
-fit_rf <- randomForest(train_x, 
-                       train_y,
+fit_rf <- randomForest(x_train, 
+                       y_train,
                        minNode = train_rf$bestTune$mtry)
 
 # plot the model to check we ran enough trees
@@ -310,7 +311,7 @@ As before, we can check the accuracy of our random forest algo:
 
 ```{r}
 y_hat_rf <- predict(fit_rf,
-                    test_x)
-confusionMatrix(y_hat_rf, test_y)
+                    x_test)
+confusionMatrix(y_hat_rf, y_test)
 ```
 

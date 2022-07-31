@@ -6,6 +6,15 @@ This project attempts to predict digits from handwritten numbers. It was origina
 
 The main aim is to predict the number written based on the darkness of each pixel. This is a classification problem and considers kNN and Random Forest approaches.
 
+It uses the following packages:
+
+dslabs for the MNIST data
+tidyverse for tidy data
+dplyr for data wrangling
+ggplot2 for visualisations
+caret for machine learning, for resampling and model training, including kNN
+randomForest for carrying out random forest
+
 The MNIST data is provided by the dslabs package. You can find more info on its online documentation here:  http://yann.lecun.com/exdb/mnist/
 
 This is a project from HarvardX Data Science programme. For more information see www.edx.org and the book Introduction to Data Science: Data Analysis and Prediction Algorithms with R by Raafael A Irizarry (https://rafalab.github.io/dsbook/)
