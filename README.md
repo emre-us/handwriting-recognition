@@ -4,7 +4,7 @@
 
 This project attempts to predict digits from handwritten numbers. It was originally presented to AT&T Bell Labs to help build automatic mail-sorting machines for the USPS. It has been used since early 1990s to compare machine learning performance on pattern recognition.
 
-The main aim is to predict the number written based on the darkness of each pixel. This is a classification problem and considers kNN and Random Forest approaches.
+The main aim is to predict the number written based on the darkness of each pixel. This is a classification problem and considers kNN and Random Forest approaches along with a simple ensemble of the two.
 
 It uses the following packages:
 
@@ -14,6 +14,10 @@ dplyr for data wrangling
 ggplot2 for visualisations
 caret for machine learning, for resampling and model training, including kNN
 randomForest for carrying out random forest
+
+and 
+
+matrixStats as an option for calculating matrix statistics (eg rowSds, colSds)
 
 The MNIST data is provided by the dslabs package. You can find more info on its online documentation here:  http://yann.lecun.com/exdb/mnist/
 

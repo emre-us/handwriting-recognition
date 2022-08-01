@@ -283,9 +283,9 @@ train_rf <- caret::train(x_train,
                          ntree = 150,
                          trControl = trainControl(method = "cv",
                                                   number = 5),
-                         tuneGrid = data.frame(mtry = c(1,5,10,25,50,100)),
+                         tuneGrid = data.frame(mtry = c(1,5,10,25,50,100)), 
                          nSamp = 100)
-
+#mtry argument is is a tuning parameter to control smoothness (along with ntree). Specificall, when building each tree at each recursive partition, we only consider a randomly selected subset of predictors to check for the best split. Every tree has a different random selection features. This reduces correlation between the trees in the forest, which in turn improves accuracy.
 # plot the final result and find the best tuning point that minimises RMSE
 train_rf
 ggplot(train_rf)
@@ -369,16 +369,17 @@ The following code will create images of the cases where we made a mistake with 
 ```{r}
 #Visualising mistakes we made with kNN
 
-p_max <- predict(fit_knn, x_test)
-# p_max <- p_max / rowSums(p_max)
-p_max <- apply(p_max, 1, max)
+p_max_knn <- predict(fit_knn, x_test)
+# p_max <- p_max / rowSums(p_max_knn)
+p_max_knn <- apply(p_max_knn, 1, max)
+
 ind <- which(y_hat_knn != y_test)
-ind <- ind[order(p_max[ind], decreasing = TRUE)]
+ind <- ind[order(p_max_knn[ind], decreasing = TRUE)]
 
 for(i in ind[1:6]){
   image(matrix(x_test[i,], 28, 28)[, 28:1],
         main = paste0("Pr(", y_hat_knn[i], ")= ",
-                      round(p_max[i], 2),
+                      round(p_max_knn[i], 2),
                       " but is a ",
                       y_test[i]),
         xaxt = "n",
@@ -389,22 +390,52 @@ for(i in ind[1:6]){
 The following code will create images of the cases where we made a mistake with random forest model:
 
 ```{r}
-p_max <- predict(fit_rf, x_test, type = "prob")
-p_max <- p_max / rowSums(p_max)
-p_max <- apply(p_max, 1, max)
+p_max_rf <- predict(fit_rf, x_test, type = "prob")
+p_max_rf <- p_max / rowSums(p_max_rf)
+p_max_rf <- apply(p_max_rf, 1, max)
 
 ind <- which(y_hat_rf != y_test)
-ind <- ind[order(p_max[ind],
+ind <- ind[order(p_max_rf[ind],
                  decreasing = TRUE)]
 
 for(i in ind[1:6]){
   image(matrix(x_test[i,], 28, 28)[, 28:1],
         main = paste0("Pr(", y_hat_rf[i], ")= ",
-                      round(p_max[i], 2),
+                      round(p_max_rf[i], 2),
                       " but is a ",
                       y_test[i]),
         xaxt = "n",
         yaxt = "n")
 }
 ```
+
+By examining errors like these we can try to identify weaknesses to algos or parameter choices, and can try to correct them.
+
+We can also ensemble different models.
+
+
+
+
+### Ensembles
+
+A very powerful approach in ML is the idea of ensembling different ML algos into one.The idea of ensemble is similar to the idea of combining data from different pollsters to obtain a better estimate of the true support of each candidate (see https://github.com/emre-us/Election-Polls.git).
+
+In ML we can usually greatly improve the final results by combining the results of different algos.
+
+Here is a simple example where we compute a new class probabilities by taking the average of random forest and kNN:
+
+```{r}
+p <- (p_max_rf + p_max_knn)/2
+head(p)
+```
+
+We can check the accuracy of this ensemble:
+```{r}
+y_pred <- factor(apply(p, 1, which.max) - 1)
+confusionMatrix(y_pred, y_test)
+```
+
+We can see the accuracy improves to about 96%. In this very simple example, we ensemble just 2 methods: knn & random forest. In practice we might ensemble dozens or even hundreds of different methods.
+
+
 
