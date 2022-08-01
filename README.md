@@ -8,10 +8,10 @@ The main aim is to predict the number written based on the darkness of each pixe
 
 It uses the following packages:
 
-dslabs for the MNIST data <\br>
-tidyverse for tidy data <\br>
-dplyr for data wrangling <\br>
-ggplot2 for visualisations<\br>
+dslabs for the MNIST data <br>
+tidyverse for tidy data <br>
+dplyr for data wrangling <br>
+ggplot2 for visualisations <br>
 caret for machine learning, for resampling and model training, including kNN
 randomForest for carrying out random forest
 
